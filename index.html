@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Convert document photos to black & white PDFs">
+  <title>Document to B&W PDF</title>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>Document Scanner</h1>
+      <p>Convert photos to black & white PDFs</p>
+    </header>
+
+    <main>
+      <section id="upload-section">
+        <input
+          type="file"
+          id="file-input"
+          accept="image/jpeg,image/png"
+          capture="environment"
+        >
+        <label for="file-input" class="upload-button">
+          Choose Image or Take Photo
+        </label>
+        <div id="file-name"></div>
+      </section>
+
+      <section id="preview-section" style="display: none;">
+        <h2>Preview</h2>
+        <canvas id="preview-canvas"></canvas>
+        <div class="controls">
+          <button id="identify-corners">Identify Corners</button>
+          <button id="skip-to-crop">Skip to Crop</button>
+        </div>
+      </section>
+
+      <section id="identify-corners-section" style="display: none;">
+        <h2>Identify Document Corners</h2>
+        <p class="hint">Drag the corner points to match your document's edges for perspective correction</p>
+        <div class="canvas-container">
+          <canvas id="corner-canvas"></canvas>
+          <svg id="corner-overlay">
+            <!-- Draggable corners will be added via JavaScript -->
+          </svg>
+        </div>
+        <div class="controls">
+          <button id="reset-corners">Reset to Edges</button>
+          <button id="preview-corners">Preview Result</button>
+        </div>
+      </section>
+
+      <section id="preview-results-section" style="display: none;">
+        <h2>Choose Result</h2>
+        <div class="preview-grid">
+          <div class="preview-option">
+            <h3>Cropped Only</h3>
+            <canvas id="preview-cropped"></canvas>
+            <button id="use-cropped" class="use-button">Use This</button>
+            <p class="hint">Simple crop - best for curved pages</p>
+          </div>
+          <div class="preview-option">
+            <h3>Perspective Corrected</h3>
+            <canvas id="preview-corrected"></canvas>
+            <button id="use-corrected" class="use-button">Use This</button>
+            <p class="hint">Straightened - best for flat documents</p>
+          </div>
+        </div>
+        <button id="adjust-corners-again">Adjust Corners</button>
+      </section>
+
+      <section id="rectangular-crop-section" style="display: none;">
+        <h2>Crop to Final Size</h2>
+        <p class="hint">Drag the rectangle to select the area you want to keep</p>
+        <div class="canvas-container">
+          <canvas id="crop-target-canvas"></canvas>
+          <svg id="rectangle-overlay"></svg>
+        </div>
+        <div class="controls">
+          <button id="reset-rectangular-crop">Reset Crop</button>
+          <button id="confirm-rectangular-crop">Confirm Crop</button>
+          <button id="skip-rectangular-crop">Use Full Image</button>
+        </div>
+      </section>
+
+      <section id="grayscale-section" style="display: none;">
+        <h2>Grayscale Preview</h2>
+        <canvas id="grayscale-canvas"></canvas>
+        <div class="controls">
+          <button id="proceed-to-threshold">Convert to Black & White</button>
+          <button id="back-to-rectangular-crop">Adjust Crop Again</button>
+        </div>
+      </section>
+
+      <section id="threshold-section" style="display: none;">
+        <h2>Black & White Preview</h2>
+        <canvas id="threshold-canvas"></canvas>
+
+        <div class="threshold-controls">
+          <div class="control-group">
+            <label for="block-size">Block Size: <span id="block-size-value">11</span></label>
+            <input type="range" id="block-size" min="5" max="51" step="2" value="11">
+          </div>
+
+          <div class="control-group">
+            <label for="constant-c">Threshold Adjustment: <span id="constant-c-value">2</span></label>
+            <input type="range" id="constant-c" min="-10" max="10" step="1" value="2">
+          </div>
+
+          <button id="reprocess-threshold">Apply Settings</button>
+
+          <div class="control-group">
+            <label for="page-size">Page Size:</label>
+            <select id="page-size">
+              <option value="letter" selected>US Letter (8.5×11")</option>
+              <option value="a4">A4 (210×297mm)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="generate-pdf">Generate PDF</button>
+          <button id="back-to-grayscale">Back</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
