@@ -30,9 +30,12 @@ export class CropUI {
       bottomLeft: { x: 0, y: image.height }
     }
 
-    // Set SVG size to match canvas
+    // Set SVG size to match canvas AND add viewBox for proper scaling
     this.svg.setAttribute('width', image.width)
     this.svg.setAttribute('height', image.height)
+    this.svg.setAttribute('viewBox', `0 0 ${image.width} ${image.height}`)
+    this.svg.style.width = '100%'
+    this.svg.style.height = '100%'
 
     this.render()
   }
@@ -72,6 +75,14 @@ export class CropUI {
     })
   }
 
+  getScale() {
+    // Get the ratio between CSS display size and logical canvas size
+    const rect = this.svg.getBoundingClientRect()
+    const scaleX = this.image.width / rect.width
+    const scaleY = this.image.height / rect.height
+    return { scaleX, scaleY, rect }
+  }
+
   setupEventListeners() {
     // Mouse events
     this.svg.addEventListener('mousedown', this.onDragStart.bind(this))
@@ -97,8 +108,10 @@ export class CropUI {
 
     e.preventDefault()
 
+    // Get scale factors
+    const { scaleX, scaleY, rect } = this.getScale()
+
     // Get coordinates relative to SVG
-    const rect = this.svg.getBoundingClientRect()
     let clientX, clientY
 
     if (e.type.startsWith('touch')) {
@@ -110,12 +123,15 @@ export class CropUI {
       clientY = e.clientY
     }
 
-    const x = clientX - rect.left
-    const y = clientY - rect.top
+    // Transform CSS pixels to logical canvas pixels
+    const cssX = clientX - rect.left
+    const cssY = clientY - rect.top
+    const logicalX = cssX * scaleX
+    const logicalY = cssY * scaleY
 
     // Constrain to image bounds
-    const constrainedX = Math.max(0, Math.min(this.image.width, x))
-    const constrainedY = Math.max(0, Math.min(this.image.height, y))
+    const constrainedX = Math.max(0, Math.min(this.image.width, logicalX))
+    const constrainedY = Math.max(0, Math.min(this.image.height, logicalY))
 
     // Update corner position
     this.corners[this.draggedCorner] = { x: constrainedX, y: constrainedY }
@@ -189,9 +205,12 @@ export class RectangularCropUI {
     const ctx = this.canvas.getContext('2d')
     ctx.drawImage(image, 0, 0)
 
-    // Set SVG
+    // Set SVG with viewBox for proper scaling
     this.svg.setAttribute('width', image.width)
     this.svg.setAttribute('height', image.height)
+    this.svg.setAttribute('viewBox', `0 0 ${image.width} ${image.height}`)
+    this.svg.style.width = '100%'
+    this.svg.style.height = '100%'
 
     // Initialize rectangle (80% of image, centered)
     const margin = 0.1
@@ -278,6 +297,13 @@ export class RectangularCropUI {
     return cursors[position] || 'move'
   }
 
+  getScale() {
+    const rect = this.svg.getBoundingClientRect()
+    const scaleX = this.image.width / rect.width
+    const scaleY = this.image.height / rect.height
+    return { scaleX, scaleY, rect }
+  }
+
   setupEventListeners() {
     this.svg.addEventListener('mousedown', this.onDragStart.bind(this))
     document.addEventListener('mousemove', this.onDrag.bind(this))
@@ -300,13 +326,16 @@ export class RectangularCropUI {
       return
     }
 
-    const rect = this.svg.getBoundingClientRect()
+    const { scaleX, scaleY, rect } = this.getScale()
     const clientX = e.clientX || e.touches[0].clientX
     const clientY = e.clientY || e.touches[0].clientY
 
+    // Store CSS coordinates and scale factors
     this.dragStart = {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
+      cssX: clientX - rect.left,
+      cssY: clientY - rect.top,
+      scaleX,
+      scaleY,
       rect: { ...this.rect }
     }
   }
@@ -316,16 +345,19 @@ export class RectangularCropUI {
 
     e.preventDefault()
 
-    const rect = this.svg.getBoundingClientRect()
+    const { scaleX, scaleY, rect } = this.getScale()
     const clientX = e.clientX || (e.touches && e.touches[0].clientX)
     const clientY = e.clientY || (e.touches && e.touches[0].clientY)
 
     if (!clientX || !clientY) return
 
-    const x = clientX - rect.left
-    const y = clientY - rect.top
-    const dx = x - this.dragStart.x
-    const dy = y - this.dragStart.y
+    // Calculate delta in CSS pixels
+    const cssDx = (clientX - rect.left) - this.dragStart.cssX
+    const cssDy = (clientY - rect.top) - this.dragStart.cssY
+
+    // Transform to logical pixels
+    const dx = cssDx * scaleX
+    const dy = cssDy * scaleY
 
     if (this.dragMode === 'move') {
       this.rect.x = this.constrain(this.dragStart.rect.x + dx, 0, this.image.width - this.rect.width)
