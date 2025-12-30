@@ -64,10 +64,10 @@ export class CropUI {
       const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
       circle.setAttribute('cx', pos.x)
       circle.setAttribute('cy', pos.y)
-      circle.setAttribute('r', '8')
+      circle.setAttribute('r', '20')  // Increased from 8 to 20 for mobile touch targets
       circle.setAttribute('fill', '#0078ff')
       circle.setAttribute('stroke', 'white')
-      circle.setAttribute('stroke-width', '2')
+      circle.setAttribute('stroke-width', '3')  // Increased from 2 to 3
       circle.setAttribute('class', 'corner-handle')
       circle.setAttribute('data-corner', name)
       circle.style.cursor = 'move'
@@ -96,15 +96,35 @@ export class CropUI {
   }
 
   onDragStart(e) {
+    console.log('[CropUI.onDragStart] FIRED', {
+      type: e.type,
+      target: e.target.tagName,
+      corner: e.target.getAttribute('data-corner'),
+      touches: e.touches?.length,
+      cancelable: e.cancelable,
+      timeStamp: e.timeStamp
+    })
+
     const target = e.target
     if (target.classList.contains('corner-handle')) {
       e.preventDefault()
       this.draggedCorner = target.getAttribute('data-corner')
+      console.log('[CropUI.onDragStart] Set draggedCorner to:', this.draggedCorner)
     }
   }
 
   onDrag(e) {
-    if (!this.draggedCorner) return
+    console.log('[CropUI.onDrag] FIRED', {
+      type: e.type,
+      draggedCorner: this.draggedCorner,
+      touches: e.touches?.length,
+      timeStamp: e.timeStamp
+    })
+
+    if (!this.draggedCorner) {
+      console.warn('[CropUI.onDrag] draggedCorner is NULL - drag stopped!')
+      return
+    }
 
     e.preventDefault()
 
@@ -140,6 +160,12 @@ export class CropUI {
   }
 
   onDragEnd(e) {
+    console.log('[CropUI.onDragEnd] FIRED', {
+      type: e.type,
+      draggedCorner: this.draggedCorner,
+      timeStamp: e.timeStamp
+    })
+
     this.draggedCorner = null
   }
 
@@ -258,7 +284,7 @@ export class RectangularCropUI {
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
     circle.setAttribute('cx', x)
     circle.setAttribute('cy', y)
-    circle.setAttribute('r', '8')
+    circle.setAttribute('r', '16')  // Increased from 8 to 16 for mobile touch targets
     circle.setAttribute('fill', '#0078ff')
     circle.setAttribute('stroke', 'white')
     circle.setAttribute('stroke-width', '2')
@@ -315,6 +341,15 @@ export class RectangularCropUI {
   }
 
   onDragStart(e) {
+    console.log('[RectangularCropUI.onDragStart] FIRED', {
+      type: e.type,
+      target: e.target.tagName,
+      handle: e.target.getAttribute('data-handle'),
+      touches: e.touches?.length,
+      cancelable: e.cancelable,
+      timeStamp: e.timeStamp
+    })
+
     e.preventDefault()
 
     const target = e.target
@@ -325,6 +360,8 @@ export class RectangularCropUI {
     } else {
       return
     }
+
+    console.log('[RectangularCropUI.onDragStart] Set dragMode to:', this.dragMode)
 
     const { scaleX, scaleY, rect } = this.getScale()
     const clientX = e.clientX || e.touches[0].clientX
@@ -341,7 +378,17 @@ export class RectangularCropUI {
   }
 
   onDrag(e) {
-    if (!this.dragMode || !this.dragStart) return
+    console.log('[RectangularCropUI.onDrag] FIRED', {
+      type: e.type,
+      dragMode: this.dragMode,
+      touches: e.touches?.length,
+      timeStamp: e.timeStamp
+    })
+
+    if (!this.dragMode || !this.dragStart) {
+      console.warn('[RectangularCropUI.onDrag] dragMode or dragStart is NULL - drag stopped!')
+      return
+    }
 
     e.preventDefault()
 
@@ -412,6 +459,12 @@ export class RectangularCropUI {
   }
 
   onDragEnd(e) {
+    console.log('[RectangularCropUI.onDragEnd] FIRED', {
+      type: e.type,
+      dragMode: this.dragMode,
+      timeStamp: e.timeStamp
+    })
+
     this.dragMode = null
     this.dragStart = null
   }
