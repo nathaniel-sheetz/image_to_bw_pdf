@@ -99,13 +99,35 @@
 
         <div class="threshold-controls">
           <div class="control-group">
-            <label for="block-size">Block Size: <span id="block-size-value">11</span></label>
-            <input type="range" id="block-size" min="5" max="51" step="2" value="11">
+            <label for="threshold-method">Method:</label>
+            <select id="threshold-method">
+              <option value="mean" selected>Mean Adaptive</option>
+              <option value="sauvola">Sauvola (better for stained scans)</option>
+            </select>
           </div>
 
-          <div class="control-group">
-            <label for="constant-c">Threshold Adjustment: <span id="constant-c-value">2</span></label>
-            <input type="range" id="constant-c" min="-10" max="10" step="1" value="2">
+          <div class="method-params" data-method="mean">
+            <div class="control-group">
+              <label for="block-size">Block Size: <span id="block-size-value">11</span></label>
+              <input type="range" id="block-size" min="5" max="51" step="2" value="11">
+            </div>
+
+            <div class="control-group">
+              <label for="constant-c">Threshold Adjustment: <span id="constant-c-value">2</span></label>
+              <input type="range" id="constant-c" min="-10" max="10" step="1" value="2">
+            </div>
+          </div>
+
+          <div class="method-params" data-method="sauvola" hidden>
+            <div class="control-group">
+              <label for="window-size">Window Size: <span id="window-size-value">15</span></label>
+              <input type="range" id="window-size" min="5" max="51" step="2" value="15">
+            </div>
+
+            <div class="control-group">
+              <label for="sauvola-k">k (sensitivity): <span id="sauvola-k-value">0.20</span></label>
+              <input type="range" id="sauvola-k" min="0.05" max="0.50" step="0.01" value="0.20">
+            </div>
           </div>
 
           <button id="reprocess-threshold">Apply Settings</button>

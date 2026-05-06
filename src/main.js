@@ -4,7 +4,7 @@ import { jsPDF } from 'jspdf'
 import { CropUI, cropToBoundingBox, RectangularCropUI, applyRectangularCrop } from './cropping.js'
 import { perspectiveTransform } from './perspective.js'
 import { convertToGrayscale } from './grayscale.js'
-import { adaptiveThreshold } from './threshold.js'
+import { adaptiveThreshold, sauvolaThreshold } from './threshold.js'
 
 // Constants
 const MAX_FILE_SIZE = 10 * 1024 * 1024  // 10MB
@@ -39,10 +39,17 @@ const proceedToThresholdBtn = document.getElementById('proceed-to-threshold')
 const backToRectangularCropBtn = document.getElementById('back-to-rectangular-crop')
 const thresholdSection = document.getElementById('threshold-section')
 const thresholdCanvas = document.getElementById('threshold-canvas')
+const thresholdMethodSelect = document.getElementById('threshold-method')
 const blockSizeSlider = document.getElementById('block-size')
 const blockSizeValue = document.getElementById('block-size-value')
 const constantCSlider = document.getElementById('constant-c')
 const constantCValue = document.getElementById('constant-c-value')
+const windowSizeSlider = document.getElementById('window-size')
+const windowSizeValue = document.getElementById('window-size-value')
+const sauvolaKSlider = document.getElementById('sauvola-k')
+const sauvolaKValue = document.getElementById('sauvola-k-value')
+const meanParamsGroup = document.querySelector('.method-params[data-method="mean"]')
+const sauvolaParamsGroup = document.querySelector('.method-params[data-method="sauvola"]')
 const reprocessThresholdBtn = document.getElementById('reprocess-threshold')
 const pageSizeSelector = document.getElementById('page-size')
 const generatePdfBtn = document.getElementById('generate-pdf')
@@ -227,6 +234,18 @@ blockSizeSlider.addEventListener('input', () => {
 constantCSlider.addEventListener('input', () => {
   constantCValue.textContent = constantCSlider.value
 })
+windowSizeSlider.addEventListener('input', () => {
+  windowSizeValue.textContent = windowSizeSlider.value
+})
+sauvolaKSlider.addEventListener('input', () => {
+  sauvolaKValue.textContent = Number(sauvolaKSlider.value).toFixed(2)
+})
+thresholdMethodSelect.addEventListener('change', () => {
+  const isSauvola = thresholdMethodSelect.value === 'sauvola'
+  meanParamsGroup.hidden = isSauvola
+  sauvolaParamsGroup.hidden = !isSauvola
+  applyThreshold()
+})
 reprocessThresholdBtn.addEventListener('click', applyThreshold)
 generatePdfBtn.addEventListener('click', generatePdf)
 backToGrayscaleBtn.addEventListener('click', () => {
@@ -385,12 +404,16 @@ function proceedToThreshold() {
 function applyThreshold() {
   if (!currentGrayscale) return
 
-  // Get parameter values
-  const blockSize = parseInt(blockSizeSlider.value)
-  const constantC = parseInt(constantCSlider.value)
-
-  // Apply adaptive thresholding
-  const thresholdResult = adaptiveThreshold(currentGrayscale, blockSize, constantC)
+  let thresholdResult
+  if (thresholdMethodSelect.value === 'sauvola') {
+    const windowSize = parseInt(windowSizeSlider.value)
+    const k = parseFloat(sauvolaKSlider.value)
+    thresholdResult = sauvolaThreshold(currentGrayscale, windowSize, k)
+  } else {
+    const blockSize = parseInt(blockSizeSlider.value)
+    const constantC = parseInt(constantCSlider.value)
+    thresholdResult = adaptiveThreshold(currentGrayscale, blockSize, constantC)
+  }
 
   if (!thresholdResult) {
     alert('Error applying threshold. Please try again.')
