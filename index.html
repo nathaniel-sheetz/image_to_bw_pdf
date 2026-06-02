@@ -38,14 +38,17 @@
 
       <section id="identify-corners-section" style="display: none;">
         <h2>Identify Document Corners</h2>
-        <p class="hint">Drag the corner points to match your document's edges for perspective correction</p>
+        <p class="hint">Drag the corner points to match your document's edges. Pinch to zoom and drag the background to pan for precise placement.</p>
         <div class="canvas-container">
-          <canvas id="corner-canvas"></canvas>
-          <svg id="corner-overlay">
-            <!-- Draggable corners will be added via JavaScript -->
-          </svg>
+          <div class="canvas-viewport">
+            <canvas id="corner-canvas"></canvas>
+            <svg id="corner-overlay">
+              <!-- Draggable corners will be added via JavaScript -->
+            </svg>
+          </div>
         </div>
         <div class="controls">
+          <button id="reset-corner-view">Reset View</button>
           <button id="reset-corners">Reset to Edges</button>
           <button id="preview-corners">Preview Result</button>
         </div>
@@ -72,12 +75,15 @@
 
       <section id="rectangular-crop-section" style="display: none;">
         <h2>Crop to Final Size</h2>
-        <p class="hint">Drag the rectangle to select the area you want to keep</p>
+        <p class="hint">Drag the rectangle or its handles to select the area you want to keep. Pinch to zoom and drag the background to pan.</p>
         <div class="canvas-container">
-          <canvas id="crop-target-canvas"></canvas>
-          <svg id="rectangle-overlay"></svg>
+          <div class="canvas-viewport">
+            <canvas id="crop-target-canvas"></canvas>
+            <svg id="rectangle-overlay"></svg>
+          </div>
         </div>
         <div class="controls">
+          <button id="reset-crop-view">Reset View</button>
           <button id="reset-rectangular-crop">Reset Crop</button>
           <button id="confirm-rectangular-crop">Confirm Crop</button>
           <button id="skip-rectangular-crop">Use Full Image</button>

@@ -1,14 +1,31 @@
 // Cropping UI with draggable corners
 
+import { CanvasViewport } from './viewport.js'
+
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+// Target on-screen size for touch handles (radius in CSS pixels -> ~44px diameter).
+const HANDLE_RADIUS_PX = 22
+const EDGE_HANDLE_PX = 18
+const STROKE_PX = 2
+
 export class CropUI {
   constructor(canvas, svg) {
     this.canvas = canvas
     this.svg = svg
     this.corners = null
-    this.draggedCorner = null
     this.image = null
+    this.handleEls = {}
+    this.polygonEl = null
 
-    this.setupEventListeners()
+    this.viewport = new CanvasViewport(this.svg.parentElement, this.svg, {
+      hitTestHandle: (target) =>
+        target.classList?.contains('corner-handle')
+          ? target.getAttribute('data-corner')
+          : null,
+      onHandleDrag: (corner, x, y) => this.moveCorner(corner, x, y),
+      onViewChange: () => this.updateHandleSizes()
+    })
   }
 
   initialize(image) {
@@ -37,136 +54,68 @@ export class CropUI {
     this.svg.style.width = '100%'
     this.svg.style.height = '100%'
 
-    this.render()
+    this.viewport.attach(image)
+    this.buildOverlay()
+    this.updateGeometry()
+    this.updateHandleSizes()
   }
 
-  render() {
-    // Clear SVG
+  // Build the SVG elements once; never recreate them mid-drag.
+  buildOverlay() {
     this.svg.innerHTML = ''
+    this.handleEls = {}
 
-    // Draw lines connecting corners
-    const lines = document.createElementNS('http://www.w3.org/2000/svg', 'polygon')
+    this.polygonEl = document.createElementNS(SVG_NS, 'polygon')
+    this.polygonEl.setAttribute('fill', 'rgba(0, 120, 255, 0.1)')
+    this.polygonEl.setAttribute('stroke', '#0078ff')
+    this.svg.appendChild(this.polygonEl)
+
+    Object.keys(this.corners).forEach((name) => {
+      const circle = document.createElementNS(SVG_NS, 'circle')
+      circle.setAttribute('fill', '#0078ff')
+      circle.setAttribute('stroke', 'white')
+      circle.setAttribute('class', 'corner-handle')
+      circle.setAttribute('data-corner', name)
+      circle.style.cursor = 'move'
+      this.svg.appendChild(circle)
+      this.handleEls[name] = circle
+    })
+  }
+
+  // Update only positions on existing elements (no DOM rebuild during drag).
+  updateGeometry() {
     const points = [
       `${this.corners.topLeft.x},${this.corners.topLeft.y}`,
       `${this.corners.topRight.x},${this.corners.topRight.y}`,
       `${this.corners.bottomRight.x},${this.corners.bottomRight.y}`,
       `${this.corners.bottomLeft.x},${this.corners.bottomLeft.y}`
     ].join(' ')
+    this.polygonEl.setAttribute('points', points)
 
-    lines.setAttribute('points', points)
-    lines.setAttribute('fill', 'rgba(0, 120, 255, 0.1)')
-    lines.setAttribute('stroke', '#0078ff')
-    lines.setAttribute('stroke-width', '2')
-    this.svg.appendChild(lines)
-
-    // Draw corner circles
     Object.entries(this.corners).forEach(([name, pos]) => {
-      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-      circle.setAttribute('cx', pos.x)
-      circle.setAttribute('cy', pos.y)
-      circle.setAttribute('r', '20')  // Increased from 8 to 20 for mobile touch targets
-      circle.setAttribute('fill', '#0078ff')
-      circle.setAttribute('stroke', 'white')
-      circle.setAttribute('stroke-width', '3')  // Increased from 2 to 3
-      circle.setAttribute('class', 'corner-handle')
-      circle.setAttribute('data-corner', name)
-      circle.style.cursor = 'move'
-      this.svg.appendChild(circle)
+      const el = this.handleEls[name]
+      el.setAttribute('cx', pos.x)
+      el.setAttribute('cy', pos.y)
     })
   }
 
-  getScale() {
-    // Get the ratio between CSS display size and logical canvas size
-    const rect = this.svg.getBoundingClientRect()
-    const scaleX = this.image.width / rect.width
-    const scaleY = this.image.height / rect.height
-    return { scaleX, scaleY, rect }
-  }
-
-  setupEventListeners() {
-    // Mouse events
-    this.svg.addEventListener('mousedown', this.onDragStart.bind(this))
-    document.addEventListener('mousemove', this.onDrag.bind(this))
-    document.addEventListener('mouseup', this.onDragEnd.bind(this))
-
-    // Touch events
-    this.svg.addEventListener('touchstart', this.onDragStart.bind(this))
-    document.addEventListener('touchmove', this.onDrag.bind(this))
-    document.addEventListener('touchend', this.onDragEnd.bind(this))
-  }
-
-  onDragStart(e) {
-    console.log('[CropUI.onDragStart] FIRED', {
-      type: e.type,
-      target: e.target.tagName,
-      corner: e.target.getAttribute('data-corner'),
-      touches: e.touches?.length,
-      cancelable: e.cancelable,
-      timeStamp: e.timeStamp
+  // Keep handle radius + stroke a constant on-screen size at any zoom/resolution.
+  updateHandleSizes() {
+    if (!this.image || !this.polygonEl) return
+    const r = this.viewport.pxToImageUnits(HANDLE_RADIUS_PX)
+    const stroke = this.viewport.pxToImageUnits(STROKE_PX)
+    this.polygonEl.setAttribute('stroke-width', stroke)
+    Object.values(this.handleEls).forEach((el) => {
+      el.setAttribute('r', r)
+      el.setAttribute('stroke-width', stroke)
     })
-
-    const target = e.target
-    if (target.classList.contains('corner-handle')) {
-      e.preventDefault()
-      this.draggedCorner = target.getAttribute('data-corner')
-      console.log('[CropUI.onDragStart] Set draggedCorner to:', this.draggedCorner)
-    }
   }
 
-  onDrag(e) {
-    console.log('[CropUI.onDrag] FIRED', {
-      type: e.type,
-      draggedCorner: this.draggedCorner,
-      touches: e.touches?.length,
-      timeStamp: e.timeStamp
-    })
-
-    if (!this.draggedCorner) {
-      console.warn('[CropUI.onDrag] draggedCorner is NULL - drag stopped!')
-      return
-    }
-
-    e.preventDefault()
-
-    // Get scale factors
-    const { scaleX, scaleY, rect } = this.getScale()
-
-    // Get coordinates relative to SVG
-    let clientX, clientY
-
-    if (e.type.startsWith('touch')) {
-      if (e.touches.length === 0) return
-      clientX = e.touches[0].clientX
-      clientY = e.touches[0].clientY
-    } else {
-      clientX = e.clientX
-      clientY = e.clientY
-    }
-
-    // Transform CSS pixels to logical canvas pixels
-    const cssX = clientX - rect.left
-    const cssY = clientY - rect.top
-    const logicalX = cssX * scaleX
-    const logicalY = cssY * scaleY
-
-    // Constrain to image bounds
-    const constrainedX = Math.max(0, Math.min(this.image.width, logicalX))
-    const constrainedY = Math.max(0, Math.min(this.image.height, logicalY))
-
-    // Update corner position
-    this.corners[this.draggedCorner] = { x: constrainedX, y: constrainedY }
-
-    this.render()
-  }
-
-  onDragEnd(e) {
-    console.log('[CropUI.onDragEnd] FIRED', {
-      type: e.type,
-      draggedCorner: this.draggedCorner,
-      timeStamp: e.timeStamp
-    })
-
-    this.draggedCorner = null
+  moveCorner(name, logicalX, logicalY) {
+    const x = Math.max(0, Math.min(this.image.width, logicalX))
+    const y = Math.max(0, Math.min(this.image.height, logicalY))
+    this.corners[name] = { x, y }
+    this.updateGeometry()
   }
 
   reset() {
@@ -179,7 +128,13 @@ export class CropUI {
       bottomLeft: { x: 0, y: this.image.height }
     }
 
-    this.render()
+    this.viewport.resetView()
+    this.updateGeometry()
+    this.updateHandleSizes()
+  }
+
+  resetView() {
+    this.viewport.resetView()
   }
 
   getCorners() {
@@ -215,11 +170,22 @@ export class RectangularCropUI {
     this.canvas = canvas
     this.svg = svg
     this.rect = null // { x, y, width, height }
-    this.dragMode = null // 'move' | 'resize-tl' | 'resize-tr' | 'resize-bl' | 'resize-br' | 'resize-top' | 'resize-bottom' | 'resize-left' | 'resize-right'
     this.dragStart = null
     this.image = null
+    this.rectEl = null
+    this.handleEls = {}
 
-    this.setupEventListeners()
+    this.viewport = new CanvasViewport(this.svg.parentElement, this.svg, {
+      hitTestHandle: (target) => {
+        if (target.hasAttribute?.('data-handle')) return target.getAttribute('data-handle')
+        if (target.classList?.contains('crop-rectangle')) return 'move'
+        return null
+      },
+      onHandleDragStart: (mode, x, y) => this.beginDrag(mode, x, y),
+      onHandleDrag: (mode, x, y) => this.applyDrag(mode, x, y),
+      onHandleDragEnd: () => { this.dragStart = null },
+      onViewChange: () => this.updateHandleSizes()
+    })
   }
 
   initialize(image) {
@@ -247,66 +213,104 @@ export class RectangularCropUI {
       height: image.height * (1 - 2 * margin)
     }
 
-    this.render()
+    this.viewport.attach(image)
+    this.buildOverlay()
+    this.updateGeometry()
+    this.updateHandleSizes()
   }
 
-  render() {
-    // Clear SVG
+  buildOverlay() {
     this.svg.innerHTML = ''
+    this.handleEls = {}
 
-    // Draw rectangle
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-    rect.setAttribute('x', this.rect.x)
-    rect.setAttribute('y', this.rect.y)
-    rect.setAttribute('width', this.rect.width)
-    rect.setAttribute('height', this.rect.height)
-    rect.setAttribute('fill', 'rgba(0, 120, 255, 0.1)')
-    rect.setAttribute('stroke', '#0078ff')
-    rect.setAttribute('stroke-width', '2')
-    rect.setAttribute('class', 'crop-rectangle')
-    rect.style.cursor = 'move'
-    this.svg.appendChild(rect)
+    this.rectEl = document.createElementNS(SVG_NS, 'rect')
+    this.rectEl.setAttribute('fill', 'rgba(0, 120, 255, 0.1)')
+    this.rectEl.setAttribute('stroke', '#0078ff')
+    this.rectEl.setAttribute('class', 'crop-rectangle')
+    this.rectEl.style.cursor = 'move'
+    this.svg.appendChild(this.rectEl)
 
-    // Draw corner handles
-    this.drawHandle('tl', this.rect.x, this.rect.y)
-    this.drawHandle('tr', this.rect.x + this.rect.width, this.rect.y)
-    this.drawHandle('bl', this.rect.x, this.rect.y + this.rect.height)
-    this.drawHandle('br', this.rect.x + this.rect.width, this.rect.y + this.rect.height)
+    // Corner handles (circles)
+    ;['tl', 'tr', 'bl', 'br'].forEach((pos) => {
+      const circle = document.createElementNS(SVG_NS, 'circle')
+      circle.setAttribute('fill', '#0078ff')
+      circle.setAttribute('stroke', 'white')
+      circle.setAttribute('class', 'resize-handle')
+      circle.setAttribute('data-handle', `resize-${pos}`)
+      circle.style.cursor = this.getResizeCursor(pos)
+      this.svg.appendChild(circle)
+      this.handleEls[pos] = circle
+    })
 
-    // Draw edge handles
-    this.drawEdgeHandle('top', this.rect.x + this.rect.width / 2, this.rect.y)
-    this.drawEdgeHandle('bottom', this.rect.x + this.rect.width / 2, this.rect.y + this.rect.height)
-    this.drawEdgeHandle('left', this.rect.x, this.rect.y + this.rect.height / 2)
-    this.drawEdgeHandle('right', this.rect.x + this.rect.width, this.rect.y + this.rect.height / 2)
+    // Edge handles (squares)
+    ;['top', 'bottom', 'left', 'right'].forEach((edge) => {
+      const rect = document.createElementNS(SVG_NS, 'rect')
+      rect.setAttribute('fill', '#0078ff')
+      rect.setAttribute('stroke', 'white')
+      rect.setAttribute('class', 'resize-handle')
+      rect.setAttribute('data-handle', `resize-${edge}`)
+      rect.style.cursor = this.getResizeCursor(edge)
+      this.svg.appendChild(rect)
+      this.handleEls[edge] = rect
+    })
   }
 
-  drawHandle(position, x, y) {
-    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-    circle.setAttribute('cx', x)
-    circle.setAttribute('cy', y)
-    circle.setAttribute('r', '16')  // Increased from 8 to 16 for mobile touch targets
-    circle.setAttribute('fill', '#0078ff')
-    circle.setAttribute('stroke', 'white')
-    circle.setAttribute('stroke-width', '2')
-    circle.setAttribute('class', 'resize-handle')
-    circle.setAttribute('data-handle', `resize-${position}`)
-    circle.style.cursor = this.getResizeCursor(position)
-    this.svg.appendChild(circle)
+  updateGeometry() {
+    const r = this.rect
+    this.rectEl.setAttribute('x', r.x)
+    this.rectEl.setAttribute('y', r.y)
+    this.rectEl.setAttribute('width', r.width)
+    this.rectEl.setAttribute('height', r.height)
+
+    const positions = {
+      tl: [r.x, r.y],
+      tr: [r.x + r.width, r.y],
+      bl: [r.x, r.y + r.height],
+      br: [r.x + r.width, r.y + r.height],
+      top: [r.x + r.width / 2, r.y],
+      bottom: [r.x + r.width / 2, r.y + r.height],
+      left: [r.x, r.y + r.height / 2],
+      right: [r.x + r.width, r.y + r.height / 2]
+    }
+
+    Object.entries(positions).forEach(([key, [cx, cy]]) => {
+      const el = this.handleEls[key]
+      if (el.tagName === 'circle') {
+        el.setAttribute('cx', cx)
+        el.setAttribute('cy', cy)
+      } else {
+        // Edge square: position is set relative to its size in updateHandleSizes;
+        // store the center so we can recompute when the size changes.
+        el._cx = cx
+        el._cy = cy
+        const half = (this._edgeHalf ?? 0)
+        el.setAttribute('x', cx - half)
+        el.setAttribute('y', cy - half)
+      }
+    })
   }
 
-  drawEdgeHandle(edge, x, y) {
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect')
-    rect.setAttribute('x', x - 4)
-    rect.setAttribute('y', y - 4)
-    rect.setAttribute('width', '8')
-    rect.setAttribute('height', '8')
-    rect.setAttribute('fill', '#0078ff')
-    rect.setAttribute('stroke', 'white')
-    rect.setAttribute('stroke-width', '2')
-    rect.setAttribute('class', 'resize-handle')
-    rect.setAttribute('data-handle', `resize-${edge}`)
-    rect.style.cursor = this.getResizeCursor(edge)
-    this.svg.appendChild(rect)
+  updateHandleSizes() {
+    if (!this.image || !this.rectEl) return
+    const r = this.viewport.pxToImageUnits(HANDLE_RADIUS_PX)
+    const edge = this.viewport.pxToImageUnits(EDGE_HANDLE_PX)
+    const stroke = this.viewport.pxToImageUnits(STROKE_PX)
+    this._edgeHalf = edge / 2
+
+    this.rectEl.setAttribute('stroke-width', stroke)
+    Object.values(this.handleEls).forEach((el) => {
+      el.setAttribute('stroke-width', stroke)
+      if (el.tagName === 'circle') {
+        el.setAttribute('r', r)
+      } else {
+        el.setAttribute('width', edge)
+        el.setAttribute('height', edge)
+        if (el._cx != null) {
+          el.setAttribute('x', el._cx - this._edgeHalf)
+          el.setAttribute('y', el._cy - this._edgeHalf)
+        }
+      }
+    })
   }
 
   getResizeCursor(position) {
@@ -323,104 +327,35 @@ export class RectangularCropUI {
     return cursors[position] || 'move'
   }
 
-  getScale() {
-    const rect = this.svg.getBoundingClientRect()
-    const scaleX = this.image.width / rect.width
-    const scaleY = this.image.height / rect.height
-    return { scaleX, scaleY, rect }
-  }
-
-  setupEventListeners() {
-    this.svg.addEventListener('mousedown', this.onDragStart.bind(this))
-    document.addEventListener('mousemove', this.onDrag.bind(this))
-    document.addEventListener('mouseup', this.onDragEnd.bind(this))
-
-    this.svg.addEventListener('touchstart', this.onDragStart.bind(this))
-    document.addEventListener('touchmove', this.onDrag.bind(this))
-    document.addEventListener('touchend', this.onDragEnd.bind(this))
-  }
-
-  onDragStart(e) {
-    console.log('[RectangularCropUI.onDragStart] FIRED', {
-      type: e.type,
-      target: e.target.tagName,
-      handle: e.target.getAttribute('data-handle'),
-      touches: e.touches?.length,
-      cancelable: e.cancelable,
-      timeStamp: e.timeStamp
-    })
-
-    e.preventDefault()
-
-    const target = e.target
-    if (target.hasAttribute('data-handle')) {
-      this.dragMode = target.getAttribute('data-handle')
-    } else if (target.classList.contains('crop-rectangle')) {
-      this.dragMode = 'move'
-    } else {
-      return
-    }
-
-    console.log('[RectangularCropUI.onDragStart] Set dragMode to:', this.dragMode)
-
-    const { scaleX, scaleY, rect } = this.getScale()
-    const clientX = e.clientX || e.touches[0].clientX
-    const clientY = e.clientY || e.touches[0].clientY
-
-    // Store CSS coordinates and scale factors
+  beginDrag(mode, imgX, imgY) {
     this.dragStart = {
-      cssX: clientX - rect.left,
-      cssY: clientY - rect.top,
-      scaleX,
-      scaleY,
+      x: imgX,
+      y: imgY,
       rect: { ...this.rect }
     }
   }
 
-  onDrag(e) {
-    console.log('[RectangularCropUI.onDrag] FIRED', {
-      type: e.type,
-      dragMode: this.dragMode,
-      touches: e.touches?.length,
-      timeStamp: e.timeStamp
-    })
+  applyDrag(mode, imgX, imgY) {
+    if (!this.dragStart) return
 
-    if (!this.dragMode || !this.dragStart) {
-      console.warn('[RectangularCropUI.onDrag] dragMode or dragStart is NULL - drag stopped!')
-      return
-    }
+    const dx = imgX - this.dragStart.x
+    const dy = imgY - this.dragStart.y
 
-    e.preventDefault()
-
-    const { scaleX, scaleY, rect } = this.getScale()
-    const clientX = e.clientX || (e.touches && e.touches[0].clientX)
-    const clientY = e.clientY || (e.touches && e.touches[0].clientY)
-
-    if (!clientX || !clientY) return
-
-    // Calculate delta in CSS pixels
-    const cssDx = (clientX - rect.left) - this.dragStart.cssX
-    const cssDy = (clientY - rect.top) - this.dragStart.cssY
-
-    // Transform to logical pixels
-    const dx = cssDx * scaleX
-    const dy = cssDy * scaleY
-
-    if (this.dragMode === 'move') {
+    if (mode === 'move') {
       this.rect.x = this.constrain(this.dragStart.rect.x + dx, 0, this.image.width - this.rect.width)
       this.rect.y = this.constrain(this.dragStart.rect.y + dy, 0, this.image.height - this.rect.height)
     } else {
-      this.handleResize(dx, dy)
+      this.handleResize(mode, dx, dy)
     }
 
-    this.render()
+    this.updateGeometry()
   }
 
-  handleResize(dx, dy) {
+  handleResize(mode, dx, dy) {
     const start = this.dragStart.rect
     const minSize = 50 // Minimum rectangle size
 
-    switch (this.dragMode) {
+    switch (mode) {
       case 'resize-tl':
         this.rect.x = Math.max(0, Math.min(start.x + dx, start.x + start.width - minSize))
         this.rect.y = Math.max(0, Math.min(start.y + dy, start.y + start.height - minSize))
@@ -458,17 +393,6 @@ export class RectangularCropUI {
     }
   }
 
-  onDragEnd(e) {
-    console.log('[RectangularCropUI.onDragEnd] FIRED', {
-      type: e.type,
-      dragMode: this.dragMode,
-      timeStamp: e.timeStamp
-    })
-
-    this.dragMode = null
-    this.dragStart = null
-  }
-
   constrain(value, min, max) {
     return Math.max(min, Math.min(value, max))
   }
@@ -484,7 +408,13 @@ export class RectangularCropUI {
       height: this.image.height * (1 - 2 * margin)
     }
 
-    this.render()
+    this.viewport.resetView()
+    this.updateGeometry()
+    this.updateHandleSizes()
+  }
+
+  resetView() {
+    this.viewport.resetView()
   }
 
   getRectangle() {
