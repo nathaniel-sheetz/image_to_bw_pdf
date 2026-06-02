@@ -126,15 +126,25 @@ button:active {
 
 .canvas-container {
   position: relative;
-  display: inline-block;
-  margin-top: 20px;
+  display: block;
+  margin: 20px auto 0;
+  max-width: 100%;
+  overflow: hidden;
+  touch-action: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+/* Element that receives the zoom/pan transform (holds canvas + overlay). */
+.canvas-viewport {
+  position: relative;
+  transform-origin: 0 0;
 }
 
 #corner-canvas {
   max-width: 100%;
   height: auto;
-  border: 1px solid #ddd;
-  border-radius: 4px;
   display: block;
 }
 
@@ -142,8 +152,15 @@ button:active {
   position: absolute;
   top: 0;
   left: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: all;
   touch-action: none;
+  z-index: 10;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 /* Rectangular crop section */
@@ -155,8 +172,6 @@ button:active {
 #crop-target-canvas {
   max-width: 100%;
   height: auto;
-  border: 1px solid #ddd;
-  border-radius: 4px;
   display: block;
 }
 
@@ -164,8 +179,15 @@ button:active {
   position: absolute;
   top: 0;
   left: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: all;
   touch-action: none;
+  z-index: 10;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .crop-rectangle {
